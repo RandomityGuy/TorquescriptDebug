@@ -1,0 +1,142 @@
+{
+  "name": "ts-debug",
+  "displayName": "Torquescript Debugger",
+  "version": "0.1.0",
+  "publisher": "RandomityGuy",
+  "description": "Torquescript Debugger",
+  "author": {
+    "name": "RandomityGuy"
+  },
+  "license": "MIT",
+  "keywords": [
+    "torquescript",
+    "debugger"
+  ],
+  "engines": {
+    "vscode": "^1.66.0"
+  },
+  "icon": "images/torque.png",
+  "categories": [
+    "Debuggers"
+  ],
+  "scripts": {
+    "compile": "tsc -p ./",
+    "lint": "eslint src --ext ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "esbuild-base": "esbuild ./src/extension.ts --bundle --tsconfig=./tsconfig.json --external:vscode --format=cjs --platform=node --outfile=dist/extension.js --format=cjs --define:import.meta.url=_importMetaUrl --banner:js=\"const _importMetaUrl=require('url').pathToFileURL(__filename)\"",
+    "watch": "npm run -S esbuild-base -- --sourcemap --sources-content=false --watch",
+    "build": "npm run -S esbuild-base -- --sourcemap --sources-content=false && npm run -S esbuild-web -- --sourcemap --sources-content=false",
+    "package": "vsce package",
+    "publish": "vsce publish",
+    "publish-pre-release": "vsce publish --pre-release",
+    "vscode:prepublish": "rimraf dist && npm run -S esbuild-base -- --minify",
+    "test": "npm run typecheck"
+  },
+  "devDependencies": {
+    "@types/glob": "^7.2.0",
+    "@types/mocha": "^9.1.0",
+    "@types/node": "^14.14.37",
+    "@types/vscode": "^1.66.0",
+    "@typescript-eslint/eslint-plugin": "^5.17.0",
+    "@typescript-eslint/parser": "^5.17.0",
+    "@vscode/debugadapter": "^1.56.0",
+    "@vscode/debugadapter-testsupport": "^1.56.0",
+    "await-notify": "^1.0.1",
+    "base64-js": "^1.5.1",
+    "esbuild": "^0.24.2",
+    "eslint": "^8.12.0",
+    "events": "^3.3.0",
+    "glob": "^7.2.0",
+    "mocha": "^9.2.2",
+    "path-browserify": "^1.0.1",
+    "rimraf": "^3.0.2",
+    "typescript": "^4.6.3",
+    "url": "^0.11.0",
+    "vsce": "^2.7.0"
+  },
+  "main": "./dist/extension.js",
+  "browser": "./dist/web-extension.js",
+  "activationEvents": [
+    "onDebugResolve:ts-debug",
+    "onDebugDynamicConfigurations:ts-debug",
+    "onCommand:extension.ts-debug.getProgramName"
+  ],
+  "workspaceTrust": {
+    "request": "never"
+  },
+  "contributes": {
+    "breakpoints": [
+      {
+        "language": "torquescript"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "ts-debug",
+        "languages": [
+          "torquescript"
+        ],
+        "label": "Torquescript Debug",
+        "program": "./out/debugAdapter.js",
+        "runtime": "node",
+        "configurationAttributes": {
+          "attach": {
+            "required": [
+              "address",
+              "port",
+              "password"
+            ],
+            "properties": {
+              "address": {
+                "type": "string",
+                "description": "The address of the remote host.",
+                "default": "localhost"
+              },
+              "port": {
+                "type": "number",
+                "description": "The port of the remote host.",
+                "default": 8000
+              },
+              "password": {
+                "type": "string",
+                "description": "The password of the remote host.",
+                "default": ""
+              },
+              "rootDir": {
+                "type": "string",
+                "description": "The root directory of the program.",
+                "default": "${workspaceFolder}"
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "ts-debug",
+            "request": "attach",
+            "name": "Attach to Torque",
+            "address": "localhost",
+            "port": 8000,
+            "password": ""
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "Torquescript Debug: Attach",
+            "description": "Attach to a Torquescript program",
+            "body": {
+              "type": "ts-debug",
+              "request": "attach",
+              "name": "Attach to Torque",
+              "address": "localhost",
+              "port": 8000,
+              "password": "",
+              "rootDir": ""
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "dependencies": {}
+}
