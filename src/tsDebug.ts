@@ -185,12 +185,12 @@ export class TSDebugSession extends LoggingDebugSession {
         // make sure to 'Stop' the buffered logging if 'trace' is not set
         logger.setup(args.trace ? Logger.LogLevel.Verbose : Logger.LogLevel.Stop, false);
 
+        this.rootDir = args.rootDir;
+
         // wait 1 second until configuration has finished (and configurationDoneRequest has been called)
         await this._configurationDone.wait(1000);
 
         let authenticated = false;
-
-        this.rootDir = args.rootDir;
 
         this.socket = net.createConnection(args.port, args.address);
 

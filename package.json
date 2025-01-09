@@ -19,6 +19,10 @@
   "categories": [
     "Debuggers"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RandomityGuy/TorquescriptDebug"
+  },
   "scripts": {
     "compile": "tsc -p ./",
     "lint": "eslint src --ext ts",
@@ -55,7 +59,6 @@
     "vsce": "^2.7.0"
   },
   "main": "./dist/extension.js",
-  "browser": "./dist/web-extension.js",
   "activationEvents": [
     "onDebugResolve:ts-debug",
     "onDebugDynamicConfigurations:ts-debug",

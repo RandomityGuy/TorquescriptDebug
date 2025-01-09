@@ -93,6 +93,9 @@ export class VarListener implements IASTVisitor {
         } else {
             fnName = stmt.functionName.lexeme;
         }
+        if (stmt.packageName) {
+            fnName = stmt.packageName.lexeme + "::" + fnName;
+        }
         this.currentFn = fnName.toLowerCase();
     }
 }
