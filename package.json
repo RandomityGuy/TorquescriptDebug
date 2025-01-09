@@ -1,5 +1,5 @@
 {
-  "name": "ts-debug",
+  "name": "torquescript-debug",
   "displayName": "Torquescript Debugger",
   "version": "0.1.0",
   "publisher": "RandomityGuy",
@@ -29,7 +29,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "esbuild-base": "esbuild ./src/extension.ts --bundle --tsconfig=./tsconfig.json --external:vscode --format=cjs --platform=node --outfile=dist/extension.js --format=cjs --define:import.meta.url=_importMetaUrl --banner:js=\"const _importMetaUrl=require('url').pathToFileURL(__filename)\"",
     "watch": "npm run -S esbuild-base -- --sourcemap --sources-content=false --watch",
-    "build": "npm run -S esbuild-base -- --sourcemap --sources-content=false && npm run -S esbuild-web -- --sourcemap --sources-content=false",
+    "build": "npm run -S esbuild-base -- --sourcemap --sources-content=false",
     "package": "vsce package",
     "publish": "vsce publish",
     "publish-pre-release": "vsce publish --pre-release",
@@ -60,9 +60,9 @@
   },
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onDebugResolve:ts-debug",
-    "onDebugDynamicConfigurations:ts-debug",
-    "onCommand:extension.ts-debug.getProgramName"
+    "onDebugResolve:torque-debug",
+    "onDebugDynamicConfigurations:torque-debug",
+    "onCommand:extension.torque-debug.getProgramName"
   ],
   "workspaceTrust": {
     "request": "never"
@@ -75,7 +75,7 @@
     ],
     "debuggers": [
       {
-        "type": "ts-debug",
+        "type": "torque-debug",
         "languages": [
           "torquescript"
         ],
@@ -115,7 +115,7 @@
         },
         "initialConfigurations": [
           {
-            "type": "ts-debug",
+            "type": "torque-debug",
             "request": "attach",
             "name": "Attach to Torque",
             "address": "localhost",
@@ -128,7 +128,7 @@
             "label": "Torquescript Debug: Attach",
             "description": "Attach to a Torquescript program",
             "body": {
-              "type": "ts-debug",
+              "type": "torque-debug",
               "request": "attach",
               "name": "Attach to Torque",
               "address": "localhost",

@@ -85,7 +85,7 @@ export class TSDebugSession extends LoggingDebugSession {
      * We configure the default implementation of a debug adapter here.
      */
     public constructor() {
-        super("ts-debug.txt");
+        super("torque-debug.txt");
 
         // this debugger uses zero-based lines and columns
         this.setDebuggerLinesStartAt1(true);

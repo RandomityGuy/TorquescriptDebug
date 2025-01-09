@@ -5,21 +5,21 @@ import { WorkspaceFolder, DebugConfiguration, ProviderResult, CancellationToken 
 import { TSDebugSession } from "./tsDebug";
 
 export function activateDebug(context: vscode.ExtensionContext) {
-    // register a configuration provider for 'ts-debug' debug type
+    // register a configuration provider for 'torque-debug' debug type
     const provider = new TSDebugConfigurationProvider();
-    context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider("ts-debug", provider));
+    context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider("torque-debug", provider));
 
-    // register a dynamic configuration provider for ts-debug' debug type
+    // register a dynamic configuration provider for torque-debug' debug type
     context.subscriptions.push(
         vscode.debug.registerDebugConfigurationProvider(
-            "ts-debug",
+            "torque-debug",
             {
                 provideDebugConfigurations(folder: WorkspaceFolder | undefined): ProviderResult<DebugConfiguration[]> {
                     return [
                         {
                             name: "Attach to Game",
                             request: "attach",
-                            type: "ts-debug",
+                            type: "torque-debug",
                             address: "localhost",
                             port: 8000,
                             password: "",
@@ -59,7 +59,7 @@ export function activateDebug(context: vscode.ExtensionContext) {
     );
 
     let factory = new InlineDebugAdapterFactory();
-    context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory("ts-debug", factory));
+    context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory("torque-debug", factory));
 }
 
 class TSDebugConfigurationProvider implements vscode.DebugConfigurationProvider {
@@ -72,7 +72,7 @@ class TSDebugConfigurationProvider implements vscode.DebugConfigurationProvider 
         if (!config.type && !config.request && !config.name) {
             const editor = vscode.window.activeTextEditor;
             if (editor && editor.document.languageId === "torquescript") {
-                config.type = "ts-debug";
+                config.type = "torque-debug";
                 config.name = "Attach to Game";
                 config.request = "attach";
                 config.address = "localhost";

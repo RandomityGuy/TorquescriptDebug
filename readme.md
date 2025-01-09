@@ -16,7 +16,7 @@ Works by interfacing with the Telnet debugger exposed by the engine.
 - Launch configuration:
 ```json
 {
-    "type": "ts-debug",
+    "type": "torque-debug",
     "request": "attach",
     "name": "Attach to Torque",
     "address": <address>,
