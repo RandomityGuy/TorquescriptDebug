@@ -37,7 +37,7 @@ interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
     rootDir?: string;
 }
 
-interface IAttachRequestArguments extends ILaunchRequestArguments {}
+interface IAttachRequestArguments extends ILaunchRequestArguments { }
 
 interface TSBreakpointLoc {
     line: number;
@@ -53,9 +53,13 @@ interface TSStackFrame {
 }
 
 enum TSVariableScope {
-    Local = 1,
-    Global = 2,
+    Local = "local",
+    Global = "global",
 }
+
+type VarRef =
+    | { kind: "scope"; frameId: number; scope: TSVariableScope }
+    | { kind: "object"; varName: string; frame: number };
 
 export class TSDebugSession extends LoggingDebugSession {
     // we don't support multiple threads, so we can use a hardcoded ID for the default thread
@@ -71,6 +75,15 @@ export class TSDebugSession extends LoggingDebugSession {
     stackFrames: TSStackFrame[] = [];
     actualStackFrames: DebugProtocol.StackFrame[] = [];
     stackStart: number = 0;
+
+    varRefs: Map<number, VarRef> = new Map();
+    nextVarRef: number = 1;
+
+    allocRef(ref: VarRef): number {
+        const id = this.nextVarRef++;
+        this.varRefs.set(id, ref);
+        return id;
+    }
 
     tryPause: boolean = false;
 
@@ -322,8 +335,8 @@ export class TSDebugSession extends LoggingDebugSession {
     protected scopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments): void {
         const stk = this.actualStackFrames[args.frameId]; // Frame id is the index
 
-        const localScope = new Scope("Locals", args.frameId * 10 + TSVariableScope.Local, false) as DebugProtocol.Scope;
-        const globalScope = new Scope("Globals", args.frameId * 10 + TSVariableScope.Global, true) as DebugProtocol.Scope;
+        const localScope = new Scope("Locals", this.allocRef({ kind: "scope", frameId: args.frameId, scope: TSVariableScope.Local }), false) as DebugProtocol.Scope;
+        const globalScope = new Scope("Globals", this.allocRef({ kind: "scope", frameId: args.frameId, scope: TSVariableScope.Global }), true) as DebugProtocol.Scope;
 
         localScope.source = stk.source;
         globalScope.source = stk.source;
@@ -341,12 +354,52 @@ export class TSDebugSession extends LoggingDebugSession {
         args: DebugProtocol.VariablesArguments,
         request?: DebugProtocol.Request
     ): Promise<void> {
-        const varType = (args.variablesReference % 10) as TSVariableScope;
-        const stkId = Math.floor(args.variablesReference / 10);
-
-        const stkFrame = this.actualStackFrames[stkId];
-
+        const ref = this.varRefs.get(args.variablesReference);
         const scopeVars = [] as DebugProtocol.Variable[];
+
+        if (ref?.kind === "object") {
+            const { varName, frame } = ref;
+
+            const staticCount = parseInt(await this.evaluateExpression(`${varName}.getFieldCount()`, frame) || "0");
+            for (let i = 0; i < staticCount; i++) {
+                const fieldName = await this.evaluateExpression(`${varName}.getField(${i})`, frame);
+                if (fieldName) {
+                    const fieldVal = await this.requestVariable(`${varName}.${fieldName}`, frame);
+                    const sv = new Variable(fieldName, fieldVal.value ?? "") as DebugProtocol.Variable;
+                    sv.variablesReference = fieldVal.variablesReference;
+                    sv.type = fieldVal.type;
+                    scopeVars.push(sv);
+                }
+            }
+
+            const dynCount = parseInt(await this.evaluateExpression(`${varName}.getDynamicFieldCount()`, frame) || "0");
+            for (let i = 0; i < dynCount; i++) {
+                const raw = await this.evaluateExpression(`${varName}.getDynamicField(${i})`, frame);
+                if (raw) {
+                    const tab = raw.indexOf("\t");
+                    const fieldName = tab >= 0 ? raw.slice(0, tab) : raw;
+                    const fieldValue = tab >= 0 ? raw.slice(tab + 1) : "";
+                    const fieldVar = await this.requestVariable(`${varName}.${fieldName}`, frame);
+                    const sv = new Variable(fieldName, fieldValue) as DebugProtocol.Variable;
+                    sv.variablesReference = fieldVar.variablesReference;
+                    sv.type = fieldVar.type;
+                    scopeVars.push(sv);
+                }
+            }
+
+            response.body = { variables: scopeVars };
+            this.sendResponse(response);
+            return;
+        }
+
+        if (ref?.kind !== "scope") {
+            response.body = { variables: [] };
+            this.sendResponse(response);
+            return;
+        }
+
+        const { frameId: stkId, scope: varType } = ref;
+        const stkFrame = this.actualStackFrames[stkId];
 
         // Check if we can open the source and read it
         if (stkFrame.source?.path && stkFrame.source.path !== "" && fs.existsSync(stkFrame.source.path)) {
@@ -387,14 +440,16 @@ export class TSDebugSession extends LoggingDebugSession {
                 const results = await Promise.all(proms);
                 for (let i = 0; i < varList.length; i++) {
                     let vval = results[i];
-                    if (vval === null) {
-                        vval = "Failed to fetch!";
+                    if (vval.value === null) {
+                        vval.value = "Failed to fetch!";
                     }
-                    if (vval === '""') {
+                    if (vval.value === '""') {
                         // These are empty variables, no need to show them
                         continue;
                     }
-                    const sv = new Variable(varList[i], vval) as DebugProtocol.Variable;
+                    const sv = new Variable(varList[i], vval.value) as DebugProtocol.Variable;
+                    sv.type = vval.type;
+                    sv.variablesReference = vval.variablesReference;
                     scopeVars.push(sv);
                 }
             }
@@ -406,16 +461,17 @@ export class TSDebugSession extends LoggingDebugSession {
     }
 
     protected async setVariableRequest(response: DebugProtocol.SetVariableResponse, args: DebugProtocol.SetVariableArguments) {
-        const varType = (args.variablesReference % 10) as TSVariableScope;
-        const stkId = Math.floor(args.variablesReference / 10);
+        const ref = this.varRefs.get(args.variablesReference);
+        const stkId = ref?.kind === "scope" ? ref.frameId : 0;
 
         this.socket?.write(`EVAL 0 ${stkId + this.stackStart} ${args.name}=${args.value}\n`);
         let newValue = await this.requestVariable(args.name, stkId + this.stackStart);
-        if (newValue === null) {
-            newValue = "Failed to fetch!";
+        if (newValue.value === null) {
+            newValue.value = "Failed to fetch!";
         }
         response.body = {
-            value: newValue,
+            value: newValue.value,
+            type: newValue.type,
         };
         this.sendResponse(response);
     }
@@ -458,8 +514,9 @@ export class TSDebugSession extends LoggingDebugSession {
                 if (res !== null) {
                     response.success = true;
                     response.body = {
-                        result: res,
+                        result: res.value || "Failed to fetch!",
                         variablesReference: 0,
+                        type: res.type,
                     };
                 } else {
                     response.success = false;
@@ -472,8 +529,9 @@ export class TSDebugSession extends LoggingDebugSession {
                 if (res !== null) {
                     response.success = true;
                     response.body = {
-                        result: res,
+                        result: res.value || "Failed to fetch!",
                         variablesReference: 0,
+                        type: res.type,
                     };
                 }
                 break;
@@ -483,6 +541,37 @@ export class TSDebugSession extends LoggingDebugSession {
     }
 
     async requestVariable(name: string, frame: number) {
+        const varValue = await this.evaluateExpression(name, frame);
+        let varIsObject = false;
+        // Do some very basic parsing checks such as whether its an integer or float
+        // If it has spaces or non A-Z characters, its a string
+        // If it has digits and a dot, it's a float
+        // If it has only digits, it's an int
+        // Otherwise it may be an object
+        if (varValue !== null && varValue !== undefined) {
+            if (/\s/.test(varValue) || /[^a-zA-Z0-9_.]/.test(varValue)) {
+                varIsObject = false; // string
+            } else if (/^\d+\.\d+$/.test(varValue)) {
+                varIsObject = false; // float
+            } else if (/^\d+$/.test(varValue)) {
+                varIsObject = true; // int - may be a handle to an object, need to check
+            } else {
+                varIsObject = true; // may be an object
+            }
+        }
+
+        const isObjStr = varIsObject ? await this.evaluateExpression(`isObject(${name})`, frame) : null;
+        let isObj = this.parseBoolean(isObjStr || "false");
+        let objType = "primitive";
+        let variablesReference = 0;
+        if (isObj) {
+            objType = await this.evaluateExpression(`${name}.getClassName()`, frame) || "object";
+            variablesReference = this.allocRef({ kind: "object", varName: name, frame });
+        }
+        return { value: varValue, type: objType, variablesReference };
+    }
+
+    async evaluateExpression(expr: string, frame: number) {
         const tag = this.varReqId++;
         let resolved = false;
         const prom = new Promise<string | null>((resolve, _) => {
@@ -490,7 +579,7 @@ export class TSDebugSession extends LoggingDebugSession {
                 resolved = true;
                 resolve(res);
             });
-            this.socket?.write(`EVAL ${tag} ${frame} ${name}\n`);
+            this.socket?.write(`EVAL ${tag} ${frame} ${expr}\n`);
         });
         setTimeout(() => {
             if (!resolved) {
@@ -569,6 +658,8 @@ export class TSDebugSession extends LoggingDebugSession {
                 }
             }
             if (cmd === "BREAK") {
+                this.varRefs.clear();
+                this.nextVarRef = 1;
                 this.stackFrames = [];
                 let i = 1;
                 while (i < split.length) {
@@ -607,6 +698,10 @@ export class TSDebugSession extends LoggingDebugSession {
             this.sendEvent(new StoppedEvent("pause", TSDebugSession.threadID));
             this.tryPause = false;
         }
+    }
+
+    parseBoolean(str: string) {
+        return str.toLowerCase() === "true" || str === "1";
     }
 
     private createSource(filePath: string): Source {

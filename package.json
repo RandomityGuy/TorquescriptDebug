@@ -1,7 +1,7 @@
 {
-  "name": "torquescript-debug",
+  "name": "torquescript-debugger",
   "displayName": "Torquescript Debugger",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "RandomityGuy",
   "description": "Torquescript Debugger",
   "author": {
