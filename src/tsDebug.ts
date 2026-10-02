@@ -560,6 +560,8 @@ export class TSDebugSession extends LoggingDebugSession {
             }
         }
 
+        varIsObject = false; // okay disable this for now
+
         const isObjStr = varIsObject ? await this.evaluateExpression(`isObject(${name})`, frame) : null;
         let isObj = this.parseBoolean(isObjStr || "false");
         let objType = "primitive";
